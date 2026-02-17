@@ -1,0 +1,24 @@
+[submodule "xlsx-design-agent"]
+	path = xlsx-design-agent
+	url = https://github.com/tivojn/xlsx-design-agent.git
+[submodule "docx-design-agent"]
+	path = docx-design-agent
+	url = https://github.com/tivojn/docx-design-agent.git
+[submodule "pptx-design-agent"]
+	path = pptx-design-agent
+	url = https://github.com/tivojn/pptx-design-agent.git
+[submodule "gogcli"]
+	path = gogcli
+	url = https://github.com/tivojn/gogcli-skill.git
+[submodule "google-maps-api"]
+	path = google-maps-api
+	url = https://github.com/tivojn/google-maps-api-skill.git
+[submodule "photo-dedup"]
+	path = photo-dedup
+	url = https://github.com/tivojn/photo-dedup.git
+[submodule "video-processor"]
+	path = video-processor
+	url = https://github.com/tivojn/video-processor.git
+[submodule "voicebox"]
+	path = voicebox
+	url = https://github.com/tivojn/voicebox.git
