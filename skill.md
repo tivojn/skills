@@ -158,37 +158,68 @@ Claude: Downloads → Transcribes → Translates → TTS → Dubbed video
 
 ### Segment-by-Segment TTS Processing
 
-The dubbing system uses a sophisticated segment-by-segment approach:
+The dubbing system uses a 3-step pipeline that scales to 1500+ segments:
 
 1. **Parse SRT** - Each subtitle entry becomes a separate TTS generation
 2. **Generate per segment** - TTS generated for each segment independently
+   - **edge-tts**: Async parallel generation in batches of 10 (fastest for large files)
+   - **Kokoro**: Single-process batch generation via KPipeline
+   - **voicebox**: Sequential generation with voice cloning
 3. **Speed adjustment** - Each segment's speed adjusted to match exact subtitle duration
-   - Uses ffmpeg `atempo` filter (supports 0.5x - 2.0x range)
-   - Handles >2x speeds with double atempo filters
-4. **Add silence gaps** - Inserts precise silence between segments
-5. **Combine** - All segments concatenated to match original video duration
+   - Uses ffmpeg `atempo` filter chain (supports 0.5x - 4.0x range)
+   - Chains multiple atempo filters for extreme ratios (>2x or <0.5x)
+4. **Numpy timeline assembly** - Places each adjusted segment at its exact SRT start position
+   in a pre-allocated numpy array. This replaces the old ffmpeg concat/amix approach and
+   scales to any number of segments without hitting ffmpeg input limits.
+5. **Video mux** - Uses `-c:v copy` (no re-encode) + soft subtitle tracks for speed
+
+**Performance (tested on 2h22m video, 1,554 segments):**
+- edge-tts TTS generation: ~12 min (parallel batches of 10)
+- Speed adjustment: ~48s
+- Numpy timeline assembly: ~1.3s
+- Video muxing: ~43s
+- **Total: ~14 min for a 2h22m video**
 
 **Benefits:**
-- Perfect timing sync (no drift over time)
-- Maintains original video duration
-- Preserves natural speech rhythm
-- Works with any TTS engine (Kokoro, edge-tts, voicebox)
+- Scales to 1500+ segments (numpy, not ffmpeg amix)
+- edge-tts parallel batches for 10x faster generation
+- No video re-encoding (`-c:v copy`)
+- Soft subtitle tracks (toggle in player)
+- Resume support (skips already-generated segments)
 
-### Voice Cloning Support
+### Voice Options
 
-Use any voicebox profile for dubbing:
+**edge-tts voices (default for most languages):**
+- English: `en-US-BrianNeural` (young male, default), `en-US-JennyNeural` (female)
+- Chinese: `zh-CN-YunxiNeural` (male), `zh-CN-XiaoxiaoNeural` (female)
+- Spanish: `es-ES-AlvaroNeural`, French: `fr-FR-HenriNeural`
+- Japanese, German, Italian, Portuguese, Korean, Russian, Arabic, Hindi, Turkish
+- Full list: `edge-tts --list-voices`
+
+**Kokoro voices (local, no internet):**
+- English: `am_michael`, `am_adam`, `af_heart`
+- Chinese: `zf_001` (and 100+ Chinese voices)
+
+**Voicebox (voice cloning):**
 ```bash
-# Dub with cloned voice
-video_dubber.py video.mp4 chinese --voice "Trump_Voice"
+# Dub with any cloned voice profile
+generate_tts_and_dub.sh video.mp4 original.srt translated.srt chinese "Trump_Voice"
 ```
 
-Available when voicebox skill is installed with cloned voice profiles.
+### Same-Language Re-voicing
+
+The dubbing pipeline supports re-voicing in the same language (no translation needed).
+Use the original SRT as both the original and translated SRT:
+```bash
+generate_tts_and_dub.sh video.mp4 transcript.srt transcript.srt english none en-US-BrianNeural
+```
 
 ## Notes
 
 - All modes start with transcription
 - Translation uses natural phrasing (not machine translation)
 - Dubbing includes perfect audio-subtitle sync (segment-by-segment)
-- **Always embeds original language subtitles** in output video
+- **Always embeds original language subtitles** in output video (soft subs)
 - Summaries are comprehensive but concise
-- Original video quality is preserved
+- Original video quality is preserved (`-c:v copy`, no re-encode)
+- Long videos (1000+ segments) handled efficiently via numpy timeline
